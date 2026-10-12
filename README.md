@@ -1,7 +1,7 @@
 
 <div align="center">
   
-<img src="pics/ic_launcher.webp" width="158" height="158" alt="OBS Controller">
+<img src="pics/OBS-Controller.jpg" width="158" height="158" alt="OBS Controller">
 
 <h1>OBS Controller</h1>
 

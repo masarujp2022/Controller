@@ -40,6 +40,9 @@ class ProfileStore(context: Context) {
     fun getTwitchChannel(): String = prefs.getString("twitch_channel", "") ?: ""
     fun setTwitchChannel(channel: String) = prefs.edit { putString("twitch_channel", channel) }
 
+    fun getKickChannel(): String = prefs.getString("kick_channel", "") ?: ""
+    fun setKickChannel(channel: String) = prefs.edit { putString("kick_channel", channel) }
+
     fun getChatFontSize(): Float = prefs.getFloat("chat_font_size", DEFAULT_FONT_SIZE)
     fun setChatFontSize(sp: Float) = prefs.edit { putFloat("chat_font_size", sp) }
 

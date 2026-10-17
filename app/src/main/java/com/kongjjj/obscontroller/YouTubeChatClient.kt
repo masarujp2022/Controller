@@ -7,7 +7,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -21,6 +23,7 @@ class YouTubeChatClient {
     private val http = OkHttpClient()
     private val scope = CoroutineScope(Dispatchers.IO)
     private var job: Job? = null
+    private var viewerCountJob: Job? = null
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages
@@ -43,6 +46,8 @@ class YouTubeChatClient {
         currentChannelId = channelId
         _messages.value = emptyList()
 
+        startViewerCountPolling(channelId)
+
         job = scope.launch {
             try {
                 // If it's a channel ID (starts with UC), resolve it to a live video ID
@@ -63,6 +68,16 @@ class YouTubeChatClient {
             } catch (e: Exception) {
                 Log.e(tag, "Error connecting to YouTube chat", e)
                 _connected.value = false
+            }
+        }
+    }
+
+    private fun startViewerCountPolling(channelId: String) {
+        viewerCountJob?.cancel()
+        viewerCountJob = scope.launch {
+            while (isActive) {
+                fetchLiveViewersScraping(channelId)
+                delay(60.seconds)
             }
         }
     }
@@ -97,7 +112,10 @@ class YouTubeChatClient {
     fun disconnect() {
         job?.cancel()
         job = null
+        viewerCountJob?.cancel()
+        viewerCountJob = null
         _connected.value = false
+        _viewerCount.value = null
         currentChannelId = null
         currentVideoId = null
         apiKey = null
@@ -169,8 +187,6 @@ class YouTubeChatClient {
     private suspend fun pollChat() {
         while (job?.isActive == true && apiKey != null && continuation != null) {
             try {
-                // Also poll viewer count while we're at it
-                currentVideoId?.let { fetchViewerCount(it) }
 
                 val url = "https://www.youtube.com/youtubei/v1/live_chat/get_live_chat?key=$apiKey"
                 val json = JSONObject().apply {
@@ -237,110 +253,199 @@ class YouTubeChatClient {
         }
     }
 
-    private fun parseChatItemAction(action: JSONObject): ChatMessage? {
-        val item = action.optJSONObject("addChatItemAction")?.optJSONObject("item")
-        val textItem = item?.optJSONObject("liveChatTextMessageRenderer")
+    internal fun parseChatItemAction(action: JSONObject): ChatMessage? {
+        val item = action.optJSONObject("addChatItemAction")?.optJSONObject("item") ?: return null
 
-        if (textItem != null) {
-            val authorName = textItem.optJSONObject("authorName")?.optString("simpleText") ?: "Unknown"
+        val textItem = item.optJSONObject("liveChatTextMessageRenderer")
+        val paidItem = item.optJSONObject("liveChatPaidMessageRenderer")
+        val stickerItem = item.optJSONObject("liveChatPaidStickerRenderer")
 
-            // Parse badges
-            val badgeTags = mutableListOf<String>()
-            val authorBadges = textItem.optJSONArray("authorBadges")
-            if (authorBadges != null) {
-                for (j in 0 until authorBadges.length()) {
-                    val badge = authorBadges.getJSONObject(j).optJSONObject("liveChatAuthorBadgeRenderer")
-                    if (badge != null) {
-                        val customThumbnail = badge.optJSONObject("customThumbnail")
-                        if (customThumbnail != null) {
-                            customThumbnail.optJSONArray("thumbnails")?.optJSONObject(0)?.optString("url")?.let {
-                                badgeTags.add(it)
-                            }
-                        } else {
-                            val icon = badge.optJSONObject("icon")
-                            val iconType = icon?.optString("iconType")
-                            if (iconType != null) {
-                                badgeTags.add("yt-$iconType")
-                            }
+        val rendererItem = textItem ?: paidItem ?: stickerItem ?: return null
+
+        val isSuperChat = (paidItem != null || stickerItem != null)
+        val purchaseAmount = rendererItem.optJSONObject("purchaseAmountText")?.optString("simpleText") ?: ""
+
+        val authorName = rendererItem.optJSONObject("authorName")?.optString("simpleText") ?: "Unknown"
+
+        // Parse badges
+        val badgeTags = mutableListOf<String>()
+        val authorBadges = rendererItem.optJSONArray("authorBadges")
+        if (authorBadges != null) {
+            for (j in 0 until authorBadges.length()) {
+                val badge = authorBadges.getJSONObject(j).optJSONObject("liveChatAuthorBadgeRenderer")
+                if (badge != null) {
+                    val customThumbnail = badge.optJSONObject("customThumbnail")
+                    if (customThumbnail != null) {
+                        val thumbnails = customThumbnail.optJSONArray("thumbnails")
+                        val badgeUrl = thumbnails?.optJSONObject(thumbnails.length() - 1)?.optString("url")
+                            ?: thumbnails?.optJSONObject(0)?.optString("url")
+                        if (badgeUrl != null) {
+                            val absoluteUrl = if (badgeUrl.startsWith("//")) "https:$badgeUrl" else badgeUrl
+                            badgeTags.add(absoluteUrl)
+                        }
+                    } else {
+                        val icon = badge.optJSONObject("icon")
+                        val iconType = icon?.optString("iconType")
+                        if (iconType != null) {
+                            badgeTags.add("yt-$iconType")
                         }
                     }
                 }
             }
-
-            val messageParts = textItem.optJSONObject("message")?.optJSONArray("runs")
-            val messageText = StringBuilder()
-            val youtubeEmotes = mutableMapOf<String, String>()
-            if (messageParts != null) {
-                for (j in 0 until messageParts.length()) {
-                    val run = messageParts.getJSONObject(j)
-                    if (run.has("text")) {
-                        messageText.append(run.optString("text"))
-                    } else if (run.has("emoji")) {
-                        val emoji = run.optJSONObject("emoji")
-                        val shortcut = emoji?.optJSONArray("shortcuts")?.optString(0) ?: ":emoji:"
-                        messageText.append(shortcut)
-
-                        val url = emoji?.optJSONObject("image")?.optJSONArray("thumbnails")?.optJSONObject(0)?.optString("url")
-                        if (url != null) {
-                            youtubeEmotes[shortcut] = url
-                        }
-                    }
-                }
-            }
-
-            val timestampUsec = textItem.optString("timestampUsec").toLongOrNull() ?: 0L
-
-            return ChatMessage(
-                id = UUID.randomUUID().toString(),
-                username = authorName,
-                message = messageText.toString(),
-                badgeTags = badgeTags,
-                youtubeEmotes = youtubeEmotes,
-                timestamp = timestampUsec / 1000,
-                platform = "youtube"
-            )
         }
+
+        val messageParts = rendererItem.optJSONObject("message")?.optJSONArray("runs")
+        val messageText = StringBuilder()
+        val youtubeEmotes = mutableMapOf<String, String>()
+
+        if (stickerItem != null) {
+            messageText.append("[超級貼圖]")
+        } else if (messageParts != null) {
+            for (j in 0 until messageParts.length()) {
+                val run = messageParts.getJSONObject(j)
+                if (run.has("text")) {
+                    messageText.append(run.optString("text"))
+                } else if (run.has("emoji")) {
+                    val emoji = run.optJSONObject("emoji")
+                    val shortcut = emoji?.optJSONArray("shortcuts")?.optString(0) ?: ":emoji:"
+                    messageText.append(shortcut)
+
+                    val url = emoji?.optJSONObject("image")?.optJSONArray("thumbnails")?.optJSONObject(0)?.optString("url")
+                    if (url != null) {
+                        youtubeEmotes[shortcut] = url
+                    }
+                }
+            }
+        }
+
+        val timestampUsec = rendererItem.optString("timestampUsec").toLongOrNull() ?: 0L
+
+        val systemMsg = if (isSuperChat) {
+            val label = if (stickerItem != null) "SuperSticker" else "SuperChat"
+            if (purchaseAmount.isNotEmpty()) "【$label $purchaseAmount】" else "【$label】"
+        } else null
+
+        return ChatMessage(
+            id = UUID.randomUUID().toString(),
+            username = authorName,
+            message = messageText.toString(),
+            badgeTags = badgeTags,
+            youtubeEmotes = youtubeEmotes,
+            timestamp = timestampUsec / 1000,
+            platform = "youtube",
+            type = if (isSuperChat) MessageType.USER_NOTICE else MessageType.NORMAL,
+            announcementColor = if (isSuperChat) "RED" else null,
+            systemMsg = systemMsg
+        )
+    }
+
+    internal fun extractViewerCountFromHtml(htmlText: String): Int? {
+        if (htmlText.isEmpty()) return null
+
+        // 1. Direct Regex for "concurrentViewers":"1234" or "concurrentViewers":"1,234"
+        val match1 = Regex(""""concurrentViewers"\s*:\s*"([\d,]+)"""").find(htmlText)
+        match1?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()?.let {
+            if (it > 0) return it
+        }
+
+        // 2. Regex for "viewCount":{"runs":[{"text":"1,234"}
+        val match2 = Regex(""""viewCount"\s*:\s*\{\s*"runs"\s*:\s*\[\s*\{\s*"text"\s*:\s*"([\d,]+)"""").find(htmlText)
+        match2?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()?.let {
+            if (it > 0) return it
+        }
+
+        // 3. Regex for "simpleText":"1,234 watching" or "1,234 位正在觀看"
+        val match3 = Regex(""""(?:simpleText|text)"\s*:\s*"([\d,]+)\s*(?:位正在觀看|人正在觀看|watching|viewers)"""").find(htmlText)
+        match3?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()?.let {
+            if (it > 0) return it
+        }
+
+        // 4. Parse ytInitialPlayerResponse JSON
+        val playerResponseMatch = Regex("""var\s+ytInitialPlayerResponse\s*=\s*(\{.*?\});""").find(htmlText)
+            ?: Regex("""window\["ytInitialPlayerResponse"]\s*=\s*(\{.*?\});""").find(htmlText)
+            ?: Regex("""ytInitialPlayerResponse\s*=\s*(\{.*?\});""").find(htmlText)
+        if (playerResponseMatch != null) {
+            try {
+                val json = JSONObject(playerResponseMatch.groupValues[1])
+                val videoDetails = json.optJSONObject("videoDetails")
+                val concurrent = videoDetails?.optString("concurrentViewers") ?: ""
+                val num = concurrent.replace(",", "").toIntOrNull()
+                if (num != null && num > 0) return num
+            } catch (e: Exception) {
+                Log.e(tag, "Error parsing ytInitialPlayerResponse JSON", e)
+            }
+        }
+
+        // 5. Parse ytInitialData JSON
+        val initialDataMatch = Regex("""window\["ytInitialData"]\s*=\s*(\{.*?\});""").find(htmlText)
+            ?: Regex("""var\s+ytInitialData\s*=\s*(\{.*?\});""").find(htmlText)
+        if (initialDataMatch != null) {
+            try {
+                val jsonStr = initialDataMatch.groupValues[1]
+                val matchInJson = Regex(""""concurrentViewers"\s*:\s*"([\d,]+)"""").find(jsonStr)
+                val num = matchInJson?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()
+                if (num != null && num > 0) return num
+            } catch (e: Exception) {
+                Log.e(tag, "Error parsing ytInitialData JSON", e)
+            }
+        }
+
         return null
     }
 
-    private fun fetchViewerCount(videoId: String) {
-        if (apiKey == null) return
-        val url = "https://www.youtube.com/youtubei/v1/player?key=$apiKey"
-        val json = JSONObject().apply {
-            put("context", JSONObject().apply {
-                put("client", JSONObject().apply {
-                    put("clientName", "WEB")
-                    put("clientVersion", "2.20210622.10.00")
-                })
-            })
-            put("videoId", videoId)
+    private suspend fun fetchLiveViewersScraping(channelId: String) = withContext(Dispatchers.IO) {
+        val targetChannelId = channelId.trim()
+        if (targetChannelId.isEmpty()) {
+            _viewerCount.value = null
+            return@withContext
         }
-        val request = Request.Builder()
-            .url(url)
-            .post(json.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-            .build()
-        try {
-            val response = http.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
-                val jsonObj = JSONObject(body)
-                val videoDetails = jsonObj.optJSONObject("videoDetails")
-                
-                // Only update if it's actually a live stream
-                if (videoDetails?.optBoolean("isLive") == true) {
-                    // Official-like structure for concurrent viewers exists in videoDetails for some InnerTube versions
-                    val concurrent = videoDetails.optString("concurrentViewers")
-                    
-                    if (concurrent.isNotEmpty()) {
-                        _viewerCount.value = concurrent.toIntOrNull()
-                    }
-                } else {
-                    _viewerCount.value = null
-                }
+
+        val urlsToTry = mutableListOf<String>()
+        if (targetChannelId.startsWith("UC")) {
+            urlsToTry.add("https://www.youtube.com/channel/$targetChannelId/live")
+        } else if (targetChannelId.startsWith("@")) {
+            urlsToTry.add("https://www.youtube.com/$targetChannelId/live")
+        } else {
+            urlsToTry.add("https://www.youtube.com/channel/$targetChannelId/live")
+        }
+
+        currentVideoId?.let { videoId ->
+            if (videoId.isNotEmpty()) {
+                urlsToTry.add("https://www.youtube.com/watch?v=$videoId")
             }
-        } catch (e: Exception) {
-            Log.e(tag, "Error fetching viewer count", e)
         }
+
+        var foundCount: Int? = null
+
+        for (url in urlsToTry) {
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    )
+                    .addHeader("Accept-Language", "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7")
+                    .addHeader("Cookie", "SOCS=CAI; CONSENT=YES+; PREF=f6=40000&hl=zh-TW")
+                    .build()
+
+                http.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val htmlText = response.body?.string() ?: ""
+                        foundCount = extractViewerCountFromHtml(htmlText)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Error scraping live viewers from $url", e)
+            }
+
+            if (foundCount != null) break
+        }
+
+        val count = foundCount
+        if (count != null && count <= 0) {
+            foundCount = null
+        }
+        _viewerCount.value = foundCount
     }
 }

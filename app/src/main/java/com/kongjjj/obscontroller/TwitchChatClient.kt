@@ -200,8 +200,12 @@ class TwitchChatClient {
                 }
             }
 
-            val login = prefix?.substringBefore("!")
-            val username = displayName ?: login ?: (if (line.contains("USERNOTICE")) "Twitch" else null) ?: return null
+            val login = prefix?.substringBefore("!")?.takeIf { it != "tmi.twitch.tv" }
+            val rawName = displayName ?: login ?: (if (line.contains("USERNOTICE")) "Twitch" else null) ?: return null
+            val username = rawName
+                .replace(" (tmi.twitch.tv)", "")
+                .replace("(tmi.twitch.tv)", "")
+                .trim()
 
             // Extract Command and Parameters
             val firstSpace = rest.indexOf(' ')

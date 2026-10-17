@@ -16,7 +16,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0.4"
+        versionName = "1.0.8"
         ndk {
             // Only include arm64 and x86_64
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -77,5 +77,6 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20231013")
     debugImplementation(libs.androidx.ui.tooling)
 }

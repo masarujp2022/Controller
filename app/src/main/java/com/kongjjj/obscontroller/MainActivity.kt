@@ -102,6 +102,7 @@ fun OBSControllerApp(vm: OBSViewModel = viewModel()) {
     val reconnecting by vm.reconnecting.collectAsState()
     val twitchChannel by vm.twitchChannel.collectAsState()
     val youtubeChannelId by vm.youtubeChannelId.collectAsState()
+    val kickChannel by vm.kickChannel.collectAsState()
     val chatMessages by vm.chatMessages.collectAsState()
     val chatConnected by vm.chatConnected.collectAsState()
     val thirdPartyEmotes by vm.thirdPartyEmotes.collectAsState()
@@ -116,6 +117,7 @@ fun OBSControllerApp(vm: OBSViewModel = viewModel()) {
     val showEmoteDebug by vm.showEmoteDebug.collectAsState()
     val twitchViewerCount by vm.twitchViewerCount.collectAsState()
     val youtubeViewerCount by vm.youtubeViewerCount.collectAsState()
+    val kickViewerCount by vm.kickViewerCount.collectAsState()
     val streamUptime by vm.streamUptime.collectAsState()
     val streamCategory by vm.streamCategory.collectAsState()
     val enable7tv by vm.enable7tv.collectAsState()
@@ -195,6 +197,7 @@ fun OBSControllerApp(vm: OBSViewModel = viewModel()) {
         SettingsDialog(
             twitchChannel = twitchChannel,
             youtubeChannelId = youtubeChannelId,
+            kickChannel = kickChannel,
             chatFontSize = chatFontSize,
             chatLineSpacing = chatLineSpacing,
             chatEmoteSize = chatEmoteSize,
@@ -211,6 +214,7 @@ fun OBSControllerApp(vm: OBSViewModel = viewModel()) {
             enableFfz = enableFfz,
             onSaveChannel = { vm.saveTwitchChannel(it) },
             onSaveYoutubeChannelId = { vm.saveYoutubeChannelId(it) },
+            onSaveKickChannel = { vm.saveKickChannel(it) },
             onFontSizeChange = { vm.setChatFontSize(it) },
             onLineSpacingChange = { vm.setChatLineSpacing(it) },
             onEmoteSizeChange = { vm.setChatEmoteSize(it) },
@@ -454,6 +458,7 @@ fun OBSControllerApp(vm: OBSViewModel = viewModel()) {
                     2 -> ChatScreen(
                         twitchChannel = twitchChannel,
                         youtubeChannelId = youtubeChannelId,
+                        kickChannel = kickChannel,
                         chatMessages = chatMessages,
                         chatConnected = chatConnected,
                         thirdPartyEmotes = thirdPartyEmotes,
@@ -474,6 +479,7 @@ fun OBSControllerApp(vm: OBSViewModel = viewModel()) {
                         showEmoteDebug = showEmoteDebug,
                         viewerCount = twitchViewerCount,
                         youtubeViewerCount = youtubeViewerCount,
+                        kickViewerCount = kickViewerCount,
                         streamUptime = streamUptime,
                         streamCategory = streamCategory,
                         onConnect = { vm.connectTwitchChat() },

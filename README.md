@@ -15,8 +15,9 @@ OBS Controller 是一款繁體中文 Android 的應用程式，可作為 OBS Stu
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com)
 [![Kick](https://img.shields.io/badge/Kick-00E701?style=for-the-badge&logo=kick&logoColor=white)](https://kick.com/)
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://)
-[![Release](https://img.shields.io/github/release/masarujp2022/Controller?color=0000FF&label=Release&style=for-the-badge)](https://github.com/masarujp2022/Controller/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/masarujp2022/Controller/total?label=Downloads&style=for-the-badge&color=lightgreen)](https://github.com/masarujp2022/Controller/releases)
+![GitHub top language](https://img.shields.io/github/languages/top/masarujp2022/OBS-Controller?&style=for-the-badge)
+[![Release](https://img.shields.io/github/release/masarujp2022/OBS-Controller?color=0000FF&label=Release&style=for-the-badge)](https://github.com/masarujp2022/OBS-Controller/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/masarujp2022/OBS-Controller/total?label=Downloads&style=for-the-badge&color=lightgreen)](https://github.com/masarujp2022/OBS-Controller/releases)
 
 
 </div>

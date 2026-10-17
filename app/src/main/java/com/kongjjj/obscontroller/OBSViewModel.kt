@@ -120,21 +120,27 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
     private val _youtubeChannelId = MutableStateFlow(store.getYoutubeChannelId())
     val youtubeChannelId: StateFlow<String> = _youtubeChannelId
 
+    private val _kickChannel = MutableStateFlow(store.getKickChannel())
+    val kickChannel: StateFlow<String> = _kickChannel
+
     private val twitchChatClient = TwitchChatClient()
     private val youtubeChatClient = YouTubeChatClient()
+    val kickChatClient = KickChatClient()
     val emoteRepository = EmoteRepository()
 
     val chatMessages = combine(
         twitchChatClient.messages,
-        youtubeChatClient.messages
-    ) { twitch, youtube ->
-        (twitch + youtube).sortedBy { it.timestamp ?: 0L }
+        youtubeChatClient.messages,
+        kickChatClient.messages
+    ) { twitch, youtube, kick ->
+        (twitch + youtube + kick).sortedBy { it.timestamp ?: 0L }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val chatConnected = combine(
         twitchChatClient.connected,
-        youtubeChatClient.connected
-    ) { t, y -> t || y }
+        youtubeChatClient.connected,
+        kickChatClient.connected
+    ) { t, y, k -> t || y || k }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     @Suppress("unused")
@@ -143,6 +149,10 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
 
     @Suppress("unused")
     val youtubeConnected = youtubeChatClient.connected
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    @Suppress("unused")
+    val kickConnected = kickChatClient.connected
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val thirdPartyEmotes = emoteRepository.thirdPartyEmotes
@@ -209,6 +219,33 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
 
     val youtubeViewerCount = youtubeChatClient.viewerCount
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _kickViewerCount = MutableStateFlow<Int?>(null)
+    val kickViewerCount: StateFlow<Int?> = _kickViewerCount
+    private var kickStatusJob: Job? = null
+
+    private fun startKickStatusPolling(channel: String) {
+        kickStatusJob?.cancel()
+        if (channel.isBlank()) {
+            _kickViewerCount.value = null
+            return
+        }
+        kickStatusJob = viewModelScope.launch {
+            while (true) {
+                try {
+                    val info = kickChatClient.resolveChannelInfo(channel)
+                    if (info != null && info.viewersCount > 0) {
+                        _kickViewerCount.value = info.viewersCount
+                    } else {
+                        _kickViewerCount.value = null
+                    }
+                } catch (_: Exception) {
+                    _kickViewerCount.value = null
+                }
+                delay(15.seconds)
+            }
+        }
+    }
 
     @Suppress("unused")
     private val _streamStartTime = MutableStateFlow<Long?>(null)
@@ -362,6 +399,12 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
             youtubeChatClient.connect(_youtubeChannelId.value)
         }
 
+        // Kick chat init
+        if (_kickChannel.value.isNotEmpty()) {
+            kickChatClient.connect(_kickChannel.value)
+            startKickStatusPolling(_kickChannel.value)
+        }
+
         // Auto-connect on startup if enabled and a last-used profile exists
         if (store.getAutoConnect()) {
             val lastId = store.getLastUsedId()
@@ -434,7 +477,8 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
                         lastMsg.twitchMsgId in SUB_TWITCH_MSG_IDS ||
                         (lastMsg.type == MessageType.USER_NOTICE && lastMsg.twitchMsgId?.contains("sub", ignoreCase = true) == true)
                     )
-                    if (!isBits && !isSub) return@collect
+                    val isYouTubeSuper = lastMsg.platform == "youtube" && lastMsg.type == MessageType.USER_NOTICE
+                    if (!isBits && !isSub && !isYouTubeSuper) return@collect
                 }
 
                 var speakText = lastMsg.message
@@ -574,6 +618,7 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
         _reconnecting.value = false
         client.disconnect()
         twitchChatClient.clearMessages()
+        kickChatClient.clearMessages()
     }
 
     fun createScene(name: String) = client.createScene(name)
@@ -659,7 +704,7 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun reloadEmotes() {
         viewModelScope.launch {
-            emoteRepository.loadAll(_enable7tv.value, _enableBttv.value, _enableFfz.value)
+            emoteRepository.loadAll(_enable7tv.value, _enableBttv.value, _enableFfz.value, kickChatClient.userId)
             val roomId = twitchChatClient.roomId.value
             if (roomId.isNotEmpty()) {
                 emoteRepository.loadChannelEmotes(
@@ -683,11 +728,21 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
         youtubeChatClient.connect(channelId)
     }
 
+    fun saveKickChannel(channel: String) {
+        store.setKickChannel(channel)
+        _kickChannel.value = channel
+        kickChatClient.connect(channel)
+        startKickStatusPolling(channel)
+        reloadEmotes()
+    }
+
     fun connectTwitchChat() {
         val channel = _twitchChannel.value
         if (channel.isNotEmpty()) twitchChatClient.connect(channel)
         val channelId = _youtubeChannelId.value
         if (channelId.isNotEmpty()) youtubeChatClient.connect(channelId)
+        val kick = _kickChannel.value
+        if (kick.isNotEmpty()) kickChatClient.connect(kick)
     }
 
     fun setChatFontSize(sp: Float) { store.setChatFontSize(sp); _chatFontSize.value = sp }
@@ -750,6 +805,7 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
                         _autoConnect.value = store.getAutoConnect()
                         _twitchChannel.value = store.getTwitchChannel()
                         _youtubeChannelId.value = store.getYoutubeChannelId()
+                        _kickChannel.value = store.getKickChannel()
                         _chatFontSize.value = store.getChatFontSize()
                         _chatLineSpacing.value = store.getChatLineSpacing()
                         _chatEmoteSize.value = store.getChatEmoteSize()
@@ -795,6 +851,7 @@ class OBSViewModel(app: Application) : AndroidViewModel(app) {
         client.disconnect()
         twitchChatClient.disconnect()
         youtubeChatClient.disconnect()
+        kickChatClient.disconnect()
         ttsManager.release()
     }
 }

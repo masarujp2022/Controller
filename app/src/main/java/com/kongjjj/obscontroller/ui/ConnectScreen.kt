@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -144,9 +145,9 @@ fun ConnectScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("OBS 控制器", style = MaterialTheme.typography.headlineMedium,
+        Text("OBS Controller", style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary)
-        Text("連線到 OBS WebSocket", style = MaterialTheme.typography.bodyMedium,
+        Text("Controller app for IRL Streaming.", style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         if (reconnecting) {
@@ -202,6 +203,7 @@ fun ConnectScreen(
                     selected = isNewProfile,
                     onClick = { selectedId = NEW_PROFILE.id },
                     label = { Text("新增") },
+                    shape = CircleShape,
                     leadingIcon = {
                         Icon(Icons.Default.Add, contentDescription = "New profile",
                             modifier = Modifier.size(16.dp))
@@ -220,16 +222,18 @@ fun ConnectScreen(
             label = { Text("設定檔名稱") },
             placeholder = { Text("e.g. Home, Studio") },
             singleLine = true,
+            shape = CircleShape,
             modifier = Modifier.fillMaxWidth()
         )
 
         OutlinedTextField(
             value = host,
             onValueChange = { host = it },
-            label = { Text("OBS PC IP 地址") },
+            label = { Text("OBS Websocket IP 地址") },
             placeholder = { Text("192.168.1.100") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             singleLine = true,
+            shape = CircleShape,
             visualTransformation = if (showHost) VisualTransformation.None else PasswordVisualTransformation('•'),
             trailingIcon = {
                 IconButton(onClick = { showHost = !showHost }) {
@@ -249,6 +253,7 @@ fun ConnectScreen(
             placeholder = { Text("4455") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
+            shape = CircleShape,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -257,6 +262,7 @@ fun ConnectScreen(
             onValueChange = { password = it },
             label = { Text("密碼 (選擇式)") },
             singleLine = true,
+            shape = CircleShape,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
@@ -367,7 +373,7 @@ fun ConnectScreen(
         }
 
         Text(
-            "請到OBS → 工具 → WebSocket 伺服器設定\n去尋找你的 IP, port 及 password",
+            "請到OBS → 工具 → WebSocket 伺服器設定\n去尋找你的 IP, port 及 password.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -385,6 +391,7 @@ private fun ProfileChip(
         selected = selected,
         onClick = onClick,
         label = { Text(label) },
+        shape = CircleShape,
         trailingIcon = {
             IconButton(onClick = onDelete, modifier = Modifier.size(18.dp)) {
                 Icon(Icons.Default.Close, contentDescription = "Delete $label",

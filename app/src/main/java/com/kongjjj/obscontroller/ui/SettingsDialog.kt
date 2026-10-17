@@ -33,6 +33,7 @@ import kotlin.math.roundToInt
 fun SettingsDialog(
     twitchChannel: String,
     youtubeChannelId: String,
+    kickChannel: String = "",
     chatFontSize: Float,
     chatLineSpacing: Float,
     chatEmoteSize: Float,
@@ -53,6 +54,7 @@ fun SettingsDialog(
     showCollectionChip: Boolean,
     onSaveChannel: (String) -> Unit,
     onSaveYoutubeChannelId: (String) -> Unit,
+    onSaveKickChannel: (String) -> Unit = {},
     onFontSizeChange: (Float) -> Unit,
     onLineSpacingChange: (Float) -> Unit,
     onEmoteSizeChange: (Float) -> Unit,
@@ -92,6 +94,7 @@ fun SettingsDialog(
 
     var channelInput by remember(twitchChannel) { mutableStateOf(twitchChannel) }
     var youtubeInput by remember(youtubeChannelId) { mutableStateOf(youtubeChannelId) }
+    var kickInput by remember(kickChannel) { mutableStateOf(kickChannel) }
 
     fun hideKeyboard() {
         focusManager.clearFocus()
@@ -189,6 +192,39 @@ fun SettingsDialog(
                                 hideKeyboard()
                                 val trimmed = youtubeInput.trim()
                                 onSaveYoutubeChannelId(trimmed)
+                                Toast.makeText(context, "已儲存", Toast.LENGTH_SHORT).show()
+                            }
+                        ) { Text("儲存") }
+                    }
+                }
+
+                // ── Kick Channel ──────────────────────────────────────────────
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Kick 頻道", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = kickInput,
+                            onValueChange = { kickInput = it },
+                            placeholder = { Text("頻道名稱") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                hideKeyboard()
+                                val trimmed = kickInput.trim().lowercase().removePrefix("/")
+                                onSaveKickChannel(trimmed)
+                                Toast.makeText(context, "已儲存", Toast.LENGTH_SHORT).show()
+                            })
+                        )
+                        FilledTonalButton(
+                            onClick = {
+                                hideKeyboard()
+                                val trimmed = kickInput.trim().lowercase().removePrefix("/")
+                                onSaveKickChannel(trimmed)
                                 Toast.makeText(context, "已儲存", Toast.LENGTH_SHORT).show()
                             }
                         ) { Text("儲存") }

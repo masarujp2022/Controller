@@ -1,22 +1,22 @@
 
 <div align="center">
-  
-<img src="pics/ic_launcher.webp" width="158" height="158" alt="OBS Controller">
+
+<img src="pics/OBS-Controller.jpg" width="158" height="158" alt="OBS Controller">
 
 <h1>OBS Controller</h1>
 
 OBS Controller 是一款繁體中文 Android 的應用程式，可作為 OBS Studio 的全功能遙控器，
 
 讓您直接透過手機完整掌控直播或錄影。專為實況主、內容創作者和工作室環境而設計，
-  
+
 可讓您管理場景、來源、音訊和濾鏡，觀看聊天室，無需在直播過程中操作電腦。
 
 [![Twitch](https://img.shields.io/badge/Twitch-9146FF?style=for-the-badge&logo=twitch&logoColor=white)](https://twitch.tv)
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com)
-[![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/kongjjj/OBS-Controller)
-![GitHub top language](https://img.shields.io/github/languages/top/kongjjj/OBS-Controller?&style=for-the-badge)
-[![Release](https://img.shields.io/github/release/kongjjj/OBS-Controller?color=0000FF&label=Release&style=for-the-badge)](https://github.com/kongjjj/OBS-Controller/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/kongjjj/OBS-Controller/total?label=Downloads&style=for-the-badge&color=lightgreen)](https://github.com/kongjjj/OBS-Controller/releases)
+[![Kick](https://img.shields.io/badge/Kick-00E701?style=for-the-badge&logo=kick&logoColor=white)](https://kick.com/)
+[![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://)
+[![Release](https://img.shields.io/github/release/masarujp2022/Controller?color=0000FF&label=Release&style=for-the-badge)](https://github.com/masarujp2022/Controller/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/masarujp2022/Controller/total?label=Downloads&style=for-the-badge&color=lightgreen)](https://github.com/masarujp2022/Controller/releases)
 
 
 </div>
@@ -24,9 +24,9 @@ OBS Controller 是一款繁體中文 Android 的應用程式，可作為 OBS Stu
 ---
 
 <div align="center">
-  
+
+![OBS-Controller](pics/Screenshot_0.jpg)
 ![OBS-Controller](pics/Screenshot_1.jpg)
-![OBS-Controller](pics/Screenshot_2.jpg) 
 
 </div>
 
@@ -52,10 +52,11 @@ OBS Controller 是一款繁體中文 Android 的應用程式，可作為 OBS Stu
 - 將您的 Android 裝置作為 OBS Studio 可靠的遙控器，無論您是在同一個網路內還是進行遠端連線。
 
 ### 💬 聊天室閱讀
-- Twitch、Youtube 聊天室顯示。
+- Twitch、Youtube、Kick 聊天室顯示。
 - Text-to-Speech聊天訊息朗讀。
 - Twitch 直播資訊 (觀看人數、直播時長) 顯示。
 - Twitch 頻道公告、連續觀看紀錄、訂閱、揪團及其他特殊訊息顯示。
+- Youtube、Kick 觀看人數顯示。
 
 ## 使用情境
 - 實況直播、內容創作、現場活動與錄影
@@ -70,12 +71,10 @@ OBS Controller 可以透過兩種方式連線至 OBS Studio：
 ---
 
 ## 安裝方法
-我會在 [GitHub releases](https://github.com/kongjjj/OBS-Controller/releases) 內發布最新 .apk 檔案。
+我會在 [GitHub releases](https://github.com/) 內發布最新 .apk 檔案。
 
-可以在手機上開啟 GitHub 發行頁面，下載 .apk 檔案並安裝。 
+可以在手機上開啟 GitHub 發行頁面，下載 .apk 檔案並安裝。
 
 ---
 
-## 我製作的其他程式
-- [Chat Overlay](https://github.com/kongjjj/Chat-Overlay)：一個Android透明 Youtube/Twitch聊天室overlay給直播使用。。 
-- [Live Streaming Camera](https://github.com/kongjjj/Live-Streaming-Camera)：一個使用中文製作的Android直播程式。 
+

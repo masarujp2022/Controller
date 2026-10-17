@@ -57,6 +57,7 @@ import java.util.Locale
 fun ChatScreen(
     twitchChannel: String,
     youtubeChannelId: String,
+    kickChannel: String = "",
     chatMessages: List<ChatMessage>,
     chatConnected: Boolean,
     thirdPartyEmotes: Map<String, String>,
@@ -77,6 +78,7 @@ fun ChatScreen(
     showEmoteDebug: Boolean,
     viewerCount: Int?,
     youtubeViewerCount: Int?,
+    kickViewerCount: Int? = null,
     streamUptime: String,
     streamCategory: String?,
     onConnect: () -> Unit,
@@ -86,8 +88,8 @@ fun ChatScreen(
     val listState = rememberLazyListState()
 
     // Auto-connect when a channel is configured
-    LaunchedEffect(twitchChannel, youtubeChannelId) {
-        if (twitchChannel.isNotEmpty() || youtubeChannelId.isNotEmpty()) onConnect()
+    LaunchedEffect(twitchChannel, youtubeChannelId, kickChannel) {
+        if (twitchChannel.isNotEmpty() || youtubeChannelId.isNotEmpty() || kickChannel.isNotEmpty()) onConnect()
     }
 
     // Keep track of whether we've already done the initial scroll for the current set of messages
@@ -148,7 +150,7 @@ fun ChatScreen(
     Column(modifier = Modifier.fillMaxSize()) {
 
         // ── Status row ────────────────────────────────────────────────────────
-        if (twitchChannel.isNotEmpty() || youtubeChannelId.isNotEmpty()) {
+        if (twitchChannel.isNotEmpty() || youtubeChannelId.isNotEmpty() || kickChannel.isNotEmpty()) {
             Surface(tonalElevation = 2.dp) {
                 Row(
                     modifier = Modifier
@@ -170,7 +172,7 @@ fun ChatScreen(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .background(
-                                            color = if (chatConnected) Color(0xFF4CAF50) else Color(0xFF9E9E9E),
+                                            color = if (chatConnected) Color(0xFF9146FF) else Color(0xFF9E9E9E),
                                             shape = CircleShape
                                         )
                                 )
@@ -188,7 +190,7 @@ fun ChatScreen(
                                             Icons.Default.Person,
                                             null,
                                             modifier = Modifier.size(12.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = Color(0xFF9146FF)
                                         )
                                         Text(
                                             text = String.format(Locale.US, "%,d", viewerCount),
@@ -231,7 +233,7 @@ fun ChatScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                if (showDebugBar && youtubeViewerCount != null) {
+                                if (youtubeViewerCount != null && youtubeViewerCount > 0) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -240,10 +242,48 @@ fun ChatScreen(
                                             Icons.Default.Person,
                                             null,
                                             modifier = Modifier.size(12.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = Color(0xFFFF0000)
                                         )
                                         Text(
                                             text = String.format(Locale.US, "%,d", youtubeViewerCount),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (kickChannel.isNotEmpty()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            color = if (chatConnected) Color(0xFF53FC18) else Color(0xFF9E9E9E),
+                                            shape = CircleShape
+                                        )
+                                )
+                                Text(
+                                    text = "Kick: #$kickChannel",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (kickViewerCount != null) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = "Kick Viewers",
+                                            modifier = Modifier.size(12.dp),
+                                            tint = Color(0xFF53FC18)
+                                        )
+                                        Text(
+                                            text = String.format(Locale.US, "%,d", kickViewerCount),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -267,13 +307,13 @@ fun ChatScreen(
         }
 
         // ── Messages / empty states ───────────────────────────────────────────
-        if (twitchChannel.isEmpty() && youtubeChannelId.isEmpty()) {
+        if (twitchChannel.isEmpty() && youtubeChannelId.isEmpty() && kickChannel.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Tap the OBS Controller title above to open Settings and enter your Twitch channel or YouTube Channel ID.",
+                    text = "Tap the OBS Controller title above to open Settings and enter your Twitch channel, YouTube Channel ID, or Kick channel.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -436,15 +476,17 @@ private fun ChatMessageRow(
 
     val defaultColor = MaterialTheme.colorScheme.primary
     val secondaryColor = MaterialTheme.colorScheme.secondary
-    val nameColor: Color = remember(message.color, defaultColor) {
-        if (message.color != null) {
+    val nameColor: Color = remember(message.color, defaultColor, message.type, message.platform) {
+        if (message.type == MessageType.USER_NOTICE && message.platform == "youtube") {
+            Color(0xFF64B5F6)
+        } else if (message.color != null) {
             try { Color(message.color.toColorInt()) }
             catch (_: Exception) { defaultColor }
         } else defaultColor
     }
 
     // Special message styling (Announcements & UserNotices & Bits & Highlights)
-    val announcementBgColor = remember(message.type, message.announcementColor, message.bits, message.isHighlighted) {
+    val announcementBgColor = remember(message.type, message.announcementColor, message.bits, message.isHighlighted, message.platform) {
         when {
             message.isHighlighted -> Color(0xFFFFD700).copy(alpha = 0.15f) // Gold for Highlights
             message.type == MessageType.ANNOUNCEMENT -> {
@@ -454,16 +496,21 @@ private fun ChatMessageRow(
                     "ORANGE" -> Color(0xFFFF8C00).copy(alpha = 0.15f)
                     "PURPLE" -> Color(0xFFA020F0).copy(alpha = 0.15f)
                     "PRIMARY" -> Color(0xFF9146FF).copy(alpha = 0.15f)
+                    "RED" -> Color(0xFFFF0000).copy(alpha = 0.15f)
                     else -> Color(0xFF9146FF).copy(alpha = 0.1f) // Fallback Twitch Purple
                 }
             }
             message.type == MessageType.USER_NOTICE || message.bits > 0 -> {
-                Color(0xFF9146FF).copy(alpha = 0.1f) // Default Purple for Subs/Raids/Bits
+                if (message.announcementColor?.uppercase() == "RED" || message.platform == "youtube") {
+                    Color(0xFFFF0000).copy(alpha = 0.15f)
+                } else {
+                    Color(0xFF9146FF).copy(alpha = 0.1f) // Default Purple for Subs/Raids/Bits
+                }
             }
             else -> null
         }
     }
-    val announcementBorderColor = remember(message.type, message.announcementColor, message.bits, message.isHighlighted) {
+    val announcementBorderColor = remember(message.type, message.announcementColor, message.bits, message.isHighlighted, message.platform) {
         when {
             message.isHighlighted -> Color(0xFFFFD700)
             message.type == MessageType.ANNOUNCEMENT -> {
@@ -471,13 +518,18 @@ private fun ChatMessageRow(
                     "BLUE" -> Color(0xFF00ADFF)
                     "GREEN" -> Color(0xFF00FF7F)
                     "ORANGE" -> Color(0xFFFF8C00)
-                    "PURPLE" -> Color(0xFFA020F0)
+                    "PURPLE" -> Color(0xFFFF8C00)
                     "PRIMARY" -> Color(0xFF9146FF)
+                    "RED" -> Color(0xFFFF0000)
                     else -> Color(0xFF9146FF)
                 }
             }
             message.type == MessageType.USER_NOTICE || message.bits > 0 -> {
-                Color(0xFF9146FF).copy(alpha = 0.5f) // Softer border
+                if (message.announcementColor?.uppercase() == "RED" || message.platform == "youtube") {
+                    Color(0xFFFF0000)
+                } else {
+                    Color(0xFF9146FF).copy(alpha = 0.5f) // Softer border
+                }
             }
             else -> null
         }
@@ -491,6 +543,13 @@ private fun ChatMessageRow(
                 tag == "yt-MODERATOR" -> "local:ic_youtubemod"
                 tag == "yt-OWNER" -> "https://www.gstatic.com/youtube/img/live_chat/badges/owner_active.png"
                 tag == "yt-VERIFIED" -> "https://www.gstatic.com/youtube/img/live_chat/badges/verified_active.png"
+                tag == "kick-broadcaster" -> "https://kick.com/assets/images/badges/broadcaster.svg"
+                tag == "kick-moderator" -> "https://kick.com/assets/images/badges/moderator.svg"
+                tag == "kick-vip" -> "https://kick.com/assets/images/badges/vip.svg"
+                tag == "kick-subscriber" -> "https://kick.com/assets/images/badges/subscriber.svg"
+                tag == "kick-verified" -> "https://kick.com/assets/images/badges/verified.svg"
+                tag == "kick-founder" -> "https://kick.com/assets/images/badges/founder.svg"
+                tag == "kick-og" -> "https://kick.com/assets/images/badges/og.svg"
                 else -> twitchBadges[tag] ?: twitchBadges["${tag.substringBefore('/')}/0"] ?: ""
             }
         }.filter { it.isNotEmpty() }
@@ -507,7 +566,11 @@ private fun ChatMessageRow(
             put("platform_icon", InlineTextContent(
                 Placeholder(badgeSize, badgeSize, PlaceholderVerticalAlign.TextCenter)
             ) {
-                val iconRes = if (message.platform == "youtube") R.drawable.ic_youtube else R.drawable.ic_twitch
+                val iconRes = when (message.platform) {
+                    "youtube" -> R.drawable.ic_youtube
+                    "kick" -> R.drawable.ic_kick
+                    else -> R.drawable.ic_twitch
+                }
                 AsyncImage(model = iconRes, contentDescription = message.platform,
                     imageLoader = imageLoader, modifier = Modifier.fillMaxSize())
             })
@@ -547,7 +610,12 @@ private fun ChatMessageRow(
             val hasUserMessage = message.message.isNotEmpty()
 
             if (isUserNotice && localizedSystemMsg.isNotEmpty()) {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = secondaryColor)) {
+                val noticeHeaderColor = if (message.platform == "youtube" || message.announcementColor?.uppercase() == "RED") {
+                    Color(0xFF64B5F6)
+                } else {
+                    secondaryColor
+                }
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = noticeHeaderColor)) {
                     append("✦ $localizedSystemMsg")
                 }
                 if (hasUserMessage) {
@@ -568,13 +636,13 @@ private fun ChatMessageRow(
             // Skip name and badges for UserNotice with no message (redundant info)
             if (isUserNotice && !hasUserMessage) return@buildAnnotatedString
 
-            if (message.platform == "youtube" || message.platform == "twitch") {
+            if (message.platform == "youtube" || message.platform == "twitch" || message.platform == "kick") {
                 appendInlineContent("platform_icon", "[${message.platform}]")
                 append(' ')
             }
 
-            // Twitch: badges BEFORE name
-            if (message.platform == "twitch") {
+            // Twitch & Kick: badges BEFORE name
+            if (message.platform == "twitch" || message.platform == "kick") {
                 badgeUrls.forEachIndexed { i, url ->
                     appendInlineContent(url, "[badge]")
                     if (i < badgeUrls.lastIndex) append('\u2009') else append(' ')
@@ -582,8 +650,15 @@ private fun ChatMessageRow(
             }
 
             withStyle(SpanStyle(color = nameColor, fontWeight = FontWeight.SemiBold, fontSize = usernameSize.sp)) {
-                append(message.username)
-                if (message.login != null && !message.login.equals(message.username, ignoreCase = true)) {
+                val displayUsername = message.username
+                    .replace(" (tmi.twitch.tv)", "")
+                    .replace("(tmi.twitch.tv)", "")
+                    .trim()
+                append(displayUsername)
+                if (message.login != null &&
+                    !message.login.equals(message.username, ignoreCase = true) &&
+                    !message.login.equals("tmi.twitch.tv", ignoreCase = true)
+                ) {
                     append(" (${message.login})")
                 }
             }
@@ -599,9 +674,20 @@ private fun ChatMessageRow(
 
             if (segments.isNotEmpty()) {
                 append(": ")
+                val isYouTubeNotice = isUserNotice && message.platform == "youtube"
+                val noticeTextColor = if (isYouTubeNotice || message.announcementColor?.uppercase() == "RED") Color(0xFF64B5F6) else null
+
                 segments.forEach { seg ->
                     when (seg) {
-                        is MessageSegment.TextPart  -> append(seg.text)
+                        is MessageSegment.TextPart  -> {
+                            if (noticeTextColor != null) {
+                                withStyle(SpanStyle(color = noticeTextColor)) {
+                                    append(seg.text)
+                                }
+                            } else {
+                                append(seg.text)
+                            }
+                        }
                         is MessageSegment.EmotePart -> appendInlineContent(seg.url, "[${seg.name}]")
                         is MessageSegment.BitsPart  -> {
                             appendInlineContent(seg.url, "[bits]")

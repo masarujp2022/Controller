@@ -27,16 +27,34 @@ enum class MessageType {
 }
 
 fun ChatMessage.getLocalizedSystemMessage(): String {
-    val raw = systemMsg ?: ""
+    val raw = (systemMsg ?: "")
+        .replace(" (tmi.twitch.tv)", "")
+        .replace("(tmi.twitch.tv)", "")
+        .trim()
     if ((platform != "twitch" || type != MessageType.USER_NOTICE)) return raw
 
     val tags = msgParams
-    val user = if (username == "AnAnonymousGifter") "有匿名贈禮人" else username
+    val cleanUser = username
+        .replace(" (tmi.twitch.tv)", "")
+        .replace("(tmi.twitch.tv)", "")
+        .trim()
+    val user = if (cleanUser == "AnAnonymousGifter" || cleanUser == "tmi.twitch.tv") "有匿名贈禮人" else cleanUser
     
     val months = tags["msg-param-cumulative-months"] ?: tags["msg-param-months"] ?: "1"
-    val recipient = tags["msg-param-recipient-display-name"] ?: tags["msg-param-recipient-user-name"] ?: "某人"
+    
+    val rawRecipient = tags["msg-param-recipient-display-name"] ?: tags["msg-param-recipient-user-name"] ?: "某人"
+    val cleanRecipient = rawRecipient
+        .replace(" (tmi.twitch.tv)", "")
+        .replace("(tmi.twitch.tv)", "")
+        .trim()
+    val recipient = if (cleanRecipient == "AnAnonymousGifter" || cleanRecipient == "tmi.twitch.tv") "某人" else cleanRecipient
+
     val senderRaw = tags["msg-param-sender-display-name"] ?: tags["msg-param-sender-login"] ?: "某人"
-    val sender = if (senderRaw == "AnAnonymousGifter") "有匿名贈禮人" else senderRaw
+    val cleanSender = senderRaw
+        .replace(" (tmi.twitch.tv)", "")
+        .replace("(tmi.twitch.tv)", "")
+        .trim()
+    val sender = if (cleanSender == "AnAnonymousGifter" || cleanSender == "tmi.twitch.tv") "有匿名贈禮人" else cleanSender
     val viewCount = tags["msg-param-viewerCount"] ?: "0"
     val ritualName = tags["msg-param-ritual-name"]
     val massGiftCount = tags["msg-param-mass-gift-count"] ?: "0"

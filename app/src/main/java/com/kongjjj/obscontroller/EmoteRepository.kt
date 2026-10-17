@@ -41,7 +41,8 @@ class EmoteRepository {
     suspend fun loadAll(
         enable7tv: Boolean = true,
         enableBttv: Boolean = true,
-        enableFfz: Boolean = true
+        enableFfz: Boolean = true,
+        kickUserId: String? = null
     ) = withContext(Dispatchers.IO) {
         _thirdPartyEmotes.value = emptyMap()
 
@@ -55,6 +56,10 @@ class EmoteRepository {
         val s7tv  = loadProvider(enable7tv,  ::fetch7TV)
         val sBttv = loadProvider(enableBttv, ::fetchBTTV)
         val sFfz  = loadProvider(enableFfz,  ::fetchFFZ)
+
+        if (!kickUserId.isNullOrBlank()) {
+            loadProvider(enable7tv) { fetch7TVKickChannel(kickUserId) }
+        }
 
         val sBdg = runCatching { fetchTwitchBadgesGlobalIvr() }
             .onSuccess { badges -> _twitchBadges.value = badges }
@@ -170,6 +175,14 @@ class EmoteRepository {
 
     private fun fetch7TVChannel(channelId: String): Map<String, String> {
         val body = get("https://7tv.io/v3/users/twitch/$channelId") ?: return emptyMap()
+        val root = JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
+            ?: return emptyMap()
+        val arr  = root.getAsJsonObject("emote_set")?.getAsJsonArray("emotes") ?: return emptyMap()
+        return parse7tvEmoteArray(arr)
+    }
+
+    private fun fetch7TVKickChannel(kickUserId: String): Map<String, String> {
+        val body = get("https://7tv.io/v3/users/kick/$kickUserId") ?: return emptyMap()
         val root = JsonParser.parseString(body).takeIf { it.isJsonObject }?.asJsonObject
             ?: return emptyMap()
         val arr  = root.getAsJsonObject("emote_set")?.getAsJsonArray("emotes") ?: return emptyMap()
@@ -366,13 +379,19 @@ fun parseMessageSegments(
         if (tail.isNotEmpty()) stage1.add(MessageSegment.TextPart(tail))
     }
 
+    // Step 2.5 — Kick Native Emotes ([emote:37226:KEKW])
+    val stageKick = stage1.flatMap { seg ->
+        if (seg is MessageSegment.TextPart) scanKickEmotes(seg.text)
+        else listOf(seg)
+    }
+
     // Step 3 — YouTube Emotes (No strict boundaries)
     val stageYoutube = if (youtubeEmotes.isNotEmpty()) {
-        stage1.flatMap { seg ->
+        stageKick.flatMap { seg ->
             if (seg is MessageSegment.TextPart) scanWords(seg.text, youtubeEmotes, useStrictBoundaries = false)
             else listOf(seg)
         }
-    } else stage1
+    } else stageKick
 
     // Step 4 — Third-party Emotes (Strict boundaries)
     val stageThirdParty = if (thirdPartyEmotes.isNotEmpty()) {
@@ -397,11 +416,40 @@ fun parseMessageSegments(
     }
 }
 
+private val kickEmoteRegex = Regex("""\[emote:(\d+):([^]]+)]""")
+
+private fun scanKickEmotes(text: String): List<MessageSegment> {
+    val result = mutableListOf<MessageSegment>()
+    var cursor = 0
+    val matches = kickEmoteRegex.findAll(text)
+
+    for (match in matches) {
+        val start = match.range.first
+        val end = match.range.last + 1
+
+        if (start > cursor) {
+            result.add(MessageSegment.TextPart(text.substring(cursor, start)))
+        }
+
+        val emoteId = match.groupValues[1]
+        val emoteName = match.groupValues[2]
+        val url = "https://files.kick.com/emotes/$emoteId/fullsize"
+        result.add(MessageSegment.EmotePart(emoteName, url))
+        cursor = end
+    }
+
+    if (cursor < text.length) {
+        result.add(MessageSegment.TextPart(text.substring(cursor)))
+    }
+
+    return result
+}
+
 private fun scanForBits(text: String): List<MessageSegment> {
     // Basic Twitch Cheer regex: matches "cheer", "bday", "kappa", etc. followed by digits
     // Twitch bits prefixes are many, but "cheer" is the standard. 
     // We'll focus on "cheer" as requested, but a more general one is common.
-    val bitsRegex = Regex("(?<=^|\\s)(cheer)(\\d+)(?=\$|\\s)", RegexOption.IGNORE_CASE)
+    val bitsRegex = Regex("(?<=^|\\s)(cheer)(\\d+)(?=$|\\s)", RegexOption.IGNORE_CASE)
     val result = mutableListOf<MessageSegment>()
     var cursor = 0
     
@@ -456,7 +504,7 @@ private fun scanWords(text: String, emotes: Map<String, String>, useStrictBounda
     
     // Use lookbehind and lookahead to ensure emotes only match on whitespace boundaries if requested
     val pattern = if (useStrictBoundaries) {
-        escapedKeys.joinToString("|", prefix = "(?<=^|\\s)(", postfix = ")(?=\$|\\s)").toRegex()
+        escapedKeys.joinToString("|", prefix = "(?<=^|\\s)(", postfix = ")(?=$|\\s)").toRegex()
     } else {
         escapedKeys.joinToString("|", prefix = "(", postfix = ")").toRegex()
     }
